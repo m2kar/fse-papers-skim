@@ -4,6 +4,8 @@
 
 ## 使用
 
+**在线访问（GitHub Pages）**：<https://m2kar.cn/fse-papers-skim/>
+
 **双击 `启动.command`**（macOS）——自动开启本地服务器并在浏览器中打开页面。
 
 手动方式：
