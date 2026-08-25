@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FSE 论文略读</title>
+<style>
+:root{
+  --bg:#F6F5F1; --card:#FFFFFF; --ink:#1F2328; --muted:#6B7280; --line:#E6E3DA;
+  --shadow:0 1px 3px rgba(20,22,26,.06),0 4px 14px rgba(20,22,26,.05);
+  --serif:"Noto Serif SC","Songti SC","STSong","SimSun",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif;
+}
+html[data-theme="dark"]{
+  --bg:#141619; --card:#1E2126; --ink:#E8E6E0; --muted:#98A0A8; --line:#2B2F36;
+  --shadow:0 1px 3px rgba(0,0,0,.35),0 6px 18px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+button{font-family:var(--sans); cursor:pointer}
+@keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+body.booting #foot, body.booting #controls{display:none}
+
+/* ---------- 加载 / 错误 ---------- */
+.boot{position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:16px; text-align:center; padding:40px}
+.boot .ring{width:34px; height:34px; border-radius:50%;
+  border:3px solid var(--line); border-top-color:#3B5BDB; animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.boot .msg{color:var(--muted); font-size:16px}
+.boot.error .ring{display:none}
+.boot.error .msg{color:#E03131; font-size:16px; line-height:1.8; max-width:560px}
+.boot code{background:var(--card); border:1px solid var(--line); border-radius:6px; padding:2px 8px; font-size:14px}
+
+/* ---------- 舞台 ---------- */
+#stage{flex:1; min-height:0; position:relative}
+.slide{
+  position:absolute; inset:0; padding:24px 56px 16px;
+  display:flex; flex-direction:column; overflow:hidden;
+  animation:fadein .18s ease; user-select:none;
+}
+
+/* ---------- 论文页 ---------- */
+.prow{display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+.badge{
+  display:inline-flex; align-items:center; gap:9px;
+  background:color-mix(in srgb, var(--cat) 10%, var(--card));
+  color:var(--cat); border:1px solid color-mix(in srgb, var(--cat) 35%, transparent);
+  padding:4px 14px 4px 5px; border-radius:999px; font-size:15px; font-weight:600;
+}
+.badge .mn{
+  display:inline-flex; width:24px; height:24px; align-items:center; justify-content:center;
+  background:var(--cat); color:#fff; border-radius:999px; font-size:14px; font-weight:700;
+}
+.pos{font-size:14.5px; color:var(--muted); font-variant-numeric:tabular-nums}
+.tzh{
+  font-family:var(--serif); font-weight:700;
+  font-size:clamp(26px, 3.1vw, 42px); line-height:1.28;
+  margin:14px 0 6px; letter-spacing:.01em;
+}
+.ten{
+  font-size:clamp(13px, 1.25vw, 17px); color:var(--muted); line-height:1.45; margin-bottom:10px;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.summary{
+  padding:9px 16px;
+  border-left:4px solid var(--cat); border-radius:6px;
+  background:color-mix(in srgb, var(--cat) 7%, var(--card));
+  font-size:clamp(14.5px, 1.5vw, 20px); line-height:1.55; font-weight:500;
+}
+.cols{flex:1; min-height:0; display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:16px}
+.col{
+  background:var(--card); border:1px solid var(--line); border-top:4px solid var(--ca);
+  border-radius:10px; padding:14px 18px 12px; box-shadow:var(--shadow);
+  display:flex; flex-direction:column; min-height:0; overflow:hidden;
+}
+.col header{
+  font-size:clamp(15px, 1.5vw, 19px); font-weight:700; color:var(--ca);
+  margin-bottom:9px; display:flex; align-items:center; gap:8px; flex:none;
+}
+.col header .ic{font-size:1.05em}
+.col p{margin:0; font-size:clamp(14px, 1.5vw, 20px); line-height:1.62; overflow:hidden}
+.col p.md{font-size:clamp(13.5px, 1.35vw, 18.5px); line-height:1.58}
+.col p.sm{font-size:clamp(13px, 1.25vw, 17px); line-height:1.55}
+.col p.xs{font-size:clamp(12px, 1.15vw, 15.5px); line-height:1.5}
+.c-problem{--ca:#D9480F} .c-method{--ca:#1971C2} .c-effect{--ca:#2F9E44}
+
+/* 团队行 + 展开按钮（三列卡片与详情之间） */
+.bottomRow{flex:none; display:flex; justify-content:space-between; align-items:center;
+  gap:18px; margin-top:14px}
+.team{flex:1; min-width:0; font-size:clamp(13px, 1.3vw, 17px); color:var(--ink); opacity:.85; line-height:1.5;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+.expand{
+  flex:none; padding:6px 22px;
+  background:transparent; color:var(--muted);
+  border:1px dashed color-mix(in srgb, var(--muted) 45%, transparent); border-radius:999px;
+  font-size:13.5px;
+}
+.expand:hover{color:var(--cat); border-color:var(--cat)}
+
+/* ---------- 类别页 ---------- */
+.cat .wm{
+  position:absolute; right:2vw; bottom:-8vh; z-index:0;
+  font-family:var(--serif); font-size:52vh; line-height:1;
+  color:var(--cat); opacity:.08; pointer-events:none;
+}
+.catbody{position:relative; z-index:1; margin:auto 0; max-width:1080px}
+.catmeta{color:var(--cat); font-weight:700; letter-spacing:.06em; font-size:15px}
+.catbody h1{font-family:var(--serif); font-size:clamp(28px,3.6vw,46px); margin:12px 0 16px; line-height:1.2}
+.survey{
+  margin:0; max-width:1040px;
+  font-family:var(--serif);
+  font-size:clamp(14.5px, 1.75vw, 21px); line-height:1.9; text-align:justify;
+}
+.survey .cite{color:var(--cat); font-weight:600; font-family:var(--sans); font-size:.9em}
+.plist{margin-top:22px; display:flex; flex-wrap:wrap; gap:8px; max-width:1020px}
+.pchip{
+  font-size:13px; padding:5px 10px; border-radius:6px;
+  border:1px solid var(--line); background:var(--card); color:var(--muted);
+  line-height:1.4;
+}
+.pchip b{color:var(--cat); margin-right:6px; font-weight:700}
+
+/* ---------- 封面 / 结尾 ---------- */
+.cover,.end{align-items:center; justify-content:center; text-align:center}
+.coverKick{color:var(--muted); font-size:16px; letter-spacing:.35em; margin-bottom:14px}
+.coverTitle{font-family:var(--serif); font-size:clamp(40px,6vw,72px); margin:0 0 8px; font-weight:700}
+.coverSub{color:var(--muted); font-size:clamp(15px,1.6vw,20px); margin-bottom:34px}
+.cchips{display:grid; grid-template-columns:repeat(6,1fr); gap:12px; width:min(980px,86vw)}
+.cchip{
+  background:var(--card); border:1px solid var(--line); border-top:4px solid var(--sc);
+  border-radius:10px; padding:14px 6px 12px; box-shadow:var(--shadow); color:var(--ink);
+}
+.cchip:hover{transform:translateY(-3px); transition:transform .15s}
+.cchip .mc{font-family:var(--serif); font-size:30px; font-weight:700; color:var(--sc); display:block}
+.cchip .nm{display:block; font-size:13px; margin-top:6px; line-height:1.35}
+.cchip .ct{display:block; font-size:12px; color:var(--muted); margin-top:4px}
+.hint{position:absolute; bottom:20px; left:0; right:0; text-align:center; color:var(--muted); font-size:13.5px}
+.hint b{color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:5px; padding:1px 7px; font-weight:600; font-size:12.5px}
+.endTitle{font-family:var(--serif); font-size:clamp(34px,4.5vw,58px); margin:0 0 12px}
+.endSub{color:var(--muted); font-size:clamp(15px,1.6vw,19px)}
+
+/* ---------- 顶部全局控件 ---------- */
+#controls{position:fixed; top:14px; right:18px; display:flex; gap:8px; z-index:70}
+#controls button{
+  height:32px; padding:0 12px; border-radius:8px; font-size:13px;
+  background:color-mix(in srgb, var(--card) 82%, transparent); color:var(--muted);
+  border:1px solid var(--line); backdrop-filter:blur(4px);
+}
+#controls button:hover{color:var(--ink); border-color:var(--muted)}
+
+/* ---------- 底栏 ---------- */
+#foot{
+  flex:none; height:52px; display:flex; align-items:center; gap:18px;
+  padding:0 22px; background:var(--card); border-top:1px solid var(--line); z-index:40;
+}
+#pbar{flex:1; display:flex; gap:3px; height:8px; min-width:120px}
+.seg{position:relative; flex:1; border-radius:4px; overflow:hidden;
+  background:color-mix(in srgb, var(--sc) 16%, transparent)}
+.seg i{position:absolute; inset:0; width:0%; background:var(--sc); opacity:.9; transition:width .2s}
+#fmeta{font-size:13px; color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums}
+#tchip{font-size:13px; color:var(--ink); background:var(--bg); border:1px solid var(--line);
+  border-radius:999px; padding:3px 10px; font-variant-numeric:tabular-nums}
+#foot .arrs{display:flex; gap:8px}
+#foot .arrs button{
+  width:34px; height:34px; border-radius:8px; font-size:16px;
+  background:var(--bg); color:var(--ink); border:1px solid var(--line);
+}
+#foot .arrs button:hover:not(:disabled){border-color:var(--muted)}
+#foot .arrs button:disabled{opacity:.35; cursor:default}
+
+/* ---------- 详情抽屉 ---------- */
+#drawer{
+  position:fixed; left:0; right:0; bottom:0; height:76vh; z-index:80;
+  background:var(--card); border-top:3px solid var(--cat,#5C5F66);
+  box-shadow:0 -14px 44px rgba(0,0,0,.28);
+  transform:translateY(103%); transition:transform .28s ease;
+  display:flex; flex-direction:column; padding:14px 30px 18px;
+}
+#drawer.open{transform:none}
+.dhead{display:flex; justify-content:space-between; align-items:center; flex:none}
+.dhead h2{margin:0; font-size:17px; font-weight:700}
+.dhead h2 .no{color:var(--cat)}
+#dClose{background:transparent; border:1px solid var(--line); color:var(--muted);
+  border-radius:8px; padding:5px 14px; font-size:13px}
+#dClose:focus{outline:none; border-color:var(--muted)}
+#dClose:hover{color:var(--ink); border-color:var(--muted)}
+.dmeta{margin-top:8px; font-size:13.5px; color:var(--muted); line-height:1.6; flex:none}
+.dmeta b{color:var(--ink); font-weight:600; margin-right:6px}
+.dkw{margin-top:7px; display:flex; flex-wrap:wrap; gap:6px; flex:none}
+.dkw span{font-size:12px; padding:2px 9px; border-radius:999px;
+  background:color-mix(in srgb, var(--cat) 9%, transparent); color:var(--cat)}
+.dgrid{flex:1; min-height:0; display:grid; grid-template-columns:41% 1fr; gap:16px; margin-top:12px}
+.dabs{display:flex; flex-direction:column; min-height:0; border:1px solid var(--line); border-radius:10px; overflow:hidden}
+.dtabs{display:flex; gap:8px; padding:10px 12px 0; flex:none}
+.dtabs button{border:1px solid var(--line); background:transparent; color:var(--muted);
+  border-radius:8px 8px 0 0; padding:6px 16px; font-size:13.5px; border-bottom:none}
+.dtabs button.on{background:var(--cat); border-color:var(--cat); color:#fff; font-weight:600}
+.dabsbody{flex:1; overflow:auto; padding:12px 16px; font-size:15.5px; line-height:1.78; user-select:text}
+.dpdf{display:flex; flex-direction:column; min-height:0; border:1px solid var(--line); border-radius:10px; overflow:hidden}
+.dpdfhead{display:flex; justify-content:space-between; align-items:center;
+  padding:7px 14px; border-bottom:1px solid var(--line); font-size:13.5px; flex:none}
+.dpdfhead a{color:var(--cat); text-decoration:none; font-weight:600}
+#dframe{flex:1; width:100%; border:0; background:#fff}
+
+/* ---------- 目录总览 ---------- */
+#ov{position:fixed; inset:0; z-index:90; overflow:auto; padding:22px 48px 30px;
+  background:color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter:blur(6px); display:none}
+#ov.open{display:block}
+.ovhead{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px}
+.ovhead h2{margin:0; font-size:20px}
+.ovhead button{background:transparent; border:1px solid var(--line); color:var(--muted);
+  border-radius:8px; padding:6px 16px; font-size:13.5px}
+.ovg{margin-bottom:20px}
+.ovgh{display:flex; align-items:baseline; gap:10px; margin-bottom:9px; cursor:pointer}
+.ovgh .mc{font-family:var(--serif); font-size:22px; font-weight:700; color:var(--sc)}
+.ovgh .nm{font-size:16px; font-weight:700}
+.ovgh .rng{font-size:12.5px; color:var(--muted)}
+.ovgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(232px,1fr)); gap:9px}
+.ovcard{background:var(--card); border:1px solid var(--line); border-left:4px solid var(--sc);
+  border-radius:8px; padding:9px 12px; cursor:pointer}
+.ovcard:hover{transform:translateY(-2px); transition:transform .12s}
+.ovcard.cur{outline:2px solid var(--sc)}
+.ovcard .n{font-size:12px; color:var(--sc); font-weight:700}
+.ovcard .t{font-size:13.8px; line-height:1.45; margin-top:2px;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+
+@media (max-width:900px){
+  .slide{padding:18px 22px 12px}
+  .cols{gap:10px}
+  .cchips{grid-template-columns:repeat(3,1fr)}
+  .dgrid{grid-template-columns:1fr; grid-template-rows:38% 1fr}
+}
+</style>
+</head>
+<body class="booting">
+  <div id="stage"><div class="boot"><div class="ring"></div><div class="msg">正在加载 papers.csv …</div></div></div>
+
+  <div id="controls">
+    <button id="btnOv" title="目录总览（G）">☰ 目录</button>
+    <button id="btnTheme" title="深浅色切换">🌙 深色</button>
+    <button id="btnFs" title="全屏（F）">⛶ 全屏</button>
+  </div>
+
+  <footer id="foot">
+    <div id="pbar"></div>
+    <span id="fmeta"></span>
+    <span id="tchip" hidden>⏱ 00:00</span>
+    <div class="arrs">
+      <button id="btnPrev" title="上一篇（←）">‹</button>
+      <button id="btnNext" title="下一篇（→）">›</button>
+    </div>
+  </footer>
+
+  <aside id="drawer">
+    <div class="dhead">
+      <h2><span class="no" id="dNo"></span> <span id="dTitle"></span></h2>
+      <button id="dClose">✕ 收起（D）</button>
+    </div>
+    <div class="dmeta">
+      <div><b>作者</b><span id="dAuth"></span></div>
+      <div><b>单位</b><span id="dAff"></span></div>
+    </div>
+    <div class="dkw" id="dKw"></div>
+    <div class="dgrid">
+      <div class="dabs">
+        <div class="dtabs">
+          <button id="tabZh" class="on">摘要 · 中文</button>
+          <button id="tabEn">Abstract · English</button>
+        </div>
+        <div class="dabsbody" id="dAbs"></div>
+      </div>
+      <div class="dpdf">
+        <div class="dpdfhead">
+          <span>原文 PDF</span>
+          <a id="dOpen" href="#" target="_blank" rel="noopener">↗ 新窗口打开</a>
+        </div>
+        <iframe id="dframe" title="原文 PDF"></iframe>
+      </div>
+    </div>
+  </aside>
+
+  <div id="ov">
+    <div class="ovhead">
+      <h2>目录总览 · 点击跳转</h2>
+      <button id="ovClose">关闭（Esc / G）</button>
+    </div>
+    <div id="ovBody"></div>
+  </div>
+
+<script>
+(function(){
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? "" : s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const trunc = (s, n) => s.length > n ? s.slice(0, n) + "…" : s;
+const pdfUrl = p => p.split("/").map(encodeURIComponent).join("/");
+
+/* ---------- CSV 解析（带引号、转义、跨行字段） ---------- */
+function parseCSV(text){
+  text = text.replace(/^\uFEFF/, "");
+  const rows = []; let row = [], field = "", i = 0, q = false;
+  while (i < text.length){
+    const ch = text[i];
+    if (q){
+      if (ch === '"'){
+        if (text[i + 1] === '"'){ field += '"'; i += 2; } else { q = false; i++; }
+      } else { field += ch; i++; }
+      continue;
+    }
+    if (ch === '"'){ q = true; i++; continue; }
+    if (ch === ","){ row.push(field); field = ""; i++; continue; }
+    if (ch === "\n"){
+      row.push(field); field = "";
+      if (row.some(c => c !== "")) rows.push(row);
+      row = []; i++; continue;
+    }
+    if (ch === "\r"){ i++; continue; }
+    field += ch; i++;
+  }
+  if (field !== "" || row.length){ row.push(field); if (row.some(c => c !== "")) rows.push(row); }
+  const head = rows.shift() || [];
+  return rows.map(r => {
+    const o = {};
+    head.forEach((h, k) => o[h.trim()] = (r[k] != null ? r[k] : "").trim());
+    return o;
+  });
+}
+
+/* ---------- 摘要等字段中 LaTeX 记号清理 ---------- */
+function clean(s){
+  s = (s || "").trim();
+  for (let k = 0; k < 3; k++){
+    const before = s;
+    s = s
+      .replace(/\\(?:textit|emph|textbf|texttt|textrm|mbox|uline)\{([^{}]*)\}/g, "$1")
+      .replace(/\$\\sim\$/g, "~")
+      .replace(/\$\\times\$/g, "×")
+      .replace(/\$\\rightarrow\$/g, "→")
+      .replace(/\$\\lambda\$/g, "λ")
+      .replace(/\\%/g, "%")
+      .replace(/\\&/g, "&")
+      .replace(/\\_/g, "_")
+      .replace(/\$\\text\{([^{}]*)\}\$/g, "$1");
+    if (s === before) break;
+  }
+  return s;
+}
+
+/* ---------- 运行时加载两个 CSV ---------- */
+async function fetchCSV(name){
+  const res = await fetch(encodeURI(name), { cache: "no-store" });
+  if (!res.ok) throw new Error(name + " 加载失败（HTTP " + res.status + "）");
+  return parseCSV(await res.text());
+}
+
+function bootError(msg){
+  $("stage").innerHTML =
+    '<div class="boot error"><div class="msg">' + esc(msg) +
+    '<br><br>本页面需要在本地服务器下运行：<br><br>双击 <code>启动.command</code>，或在本目录执行<br><br><code>python3 -m http.server 8931</code><br><br>然后访问 <code>http://localhost:8931/index.html</code></div></div>';
+}
+
+let CATS = [], PAPERS = [], N = 0;
+const CAT_COLORS = {"写":"#3B5BDB","测":"#0C8599","改":"#E8590C","析":"#7048E8","防":"#E03131","研":"#2F9E44"};
+const catColor = c => CAT_COLORS[c.mnemonic] || "#5C5F66";
+
+async function load(){
+  let paperRows, catRows;
+  try { paperRows = await fetchCSV("papers.csv"); }
+  catch (e){ bootError("无法读取 papers.csv：" + e.message + "（直接双击打开的 file:// 页面无法读取本地文件）"); return false; }
+  try { catRows = await fetchCSV("分类思路.csv"); }
+  catch (e){ bootError("无法读取 分类思路.csv：" + e.message); return false; }
+
+  CATS = catRows
+    .filter(r => /^\d+$/.test(r["篇数"] || ""))
+    .map(r => ({
+      mnemonic: clean(r["定位口诀"]),
+      name: clean(r["分类"]),
+      range: clean(r["顺序范围"]),
+      count: +r["篇数"],
+      survey: clean(r["类别综述"]),
+    }));
+  const catIndex = {};
+  CATS.forEach((c, i) => catIndex[c.name] = i);
+
+  PAPERS = paperRows.map((r, idx) => ({
+    order: +clean(r["顺序"]) || idx + 1,
+    cat: catIndex[clean(r["分类"])] ?? -1,
+    no: clean(r["编号"]),
+    noPad: clean(r["编号"]).padStart(2, "0"),
+    title: clean(r["标题"]),
+    titleZh: clean(r["标题翻译"]),
+    authors: clean(r["作者列表"]),
+    aff: clean(r["单位"]),
+    abs: clean(r["摘要"]),
+    absZh: clean(r["摘要翻译"]),
+    problem: clean(r["问题挑战"]),
+    method: clean(r["核心方法"]),
+    effect: clean(r["主要效果"]),
+    summary: clean(r["一句话总结"]),
+    keywords: clean(r["关键词"]).split(/[；;，,]/).filter(Boolean),
+    team: clean(r["作者团队简介"]),
+    pdf: clean(r["原文PDF"]),
+  }));
+  N = PAPERS.length;
+  if (!N || !CATS.length){ bootError("CSV 解析结果为空，请检查文件内容。"); return false; }
+  return true;
+}
+
+/* ---------- 幻灯片序列：封面 →（类别页+论文页）×6 → 结尾 ---------- */
+let slides = [], catSlideIdx = [], paperSlideIdx = [];
+function buildSlides(){
+  slides = [{t:"cover"}];
+  catSlideIdx = []; paperSlideIdx = [];
+  CATS.forEach((c, ci) => {
+    catSlideIdx.push(slides.length);
+    slides.push({t:"cat", ci});
+    PAPERS.forEach((p, pi) => {
+      if (p.cat !== ci) return;
+      paperSlideIdx[pi] = slides.length;
+      slides.push({t:"paper", pi});
+    });
+  });
+  slides.push({t:"end"});
+}
+const catStart = ci => CATS.slice(0, ci).reduce((a, c) => a + c.count, 0);
+
+/* ---------- 状态 ---------- */
+let cur = 0, drawerOpen = false, curPi = -1;
+let tRun = false, tSec = 0, tInt = null;
+
+/* ---------- 渲染 ---------- */
+function render(){
+  const s = slides[cur];
+  const stage = $("stage");
+  stage.innerHTML = "";
+  const el = document.createElement("div");
+  if (s.t === "cover") renderCover(el);
+  else if (s.t === "cat") renderCat(el, s.ci);
+  else if (s.t === "paper") renderPaper(el, s.pi);
+  else renderEnd(el);
+  stage.appendChild(el);
+  if (s.t === "paper") curPi = s.pi; else curPi = -1;
+  if (s.t !== "paper" && drawerOpen) closeDrawer();
+  else if (s.t === "paper" && drawerOpen) fillDrawer(s.pi);
+  updateFooter();
+  $("btnPrev").disabled = cur === 0;
+  $("btnNext").disabled = cur === slides.length - 1;
+}
+
+function renderCover(el){
+  el.className = "slide cover";
+  const chips = CATS.map((c, i) =>
+    `<button class="cchip" style="--sc:${catColor(c)}" data-goto="${catSlideIdx[i]}">
+       <span class="mc">${esc(c.mnemonic)}</span>
+       <span class="nm">${esc(c.name)}</span>
+       <span class="ct">${c.count} 篇 · 第 ${esc(c.range)} 篇</span>
+     </button>`).join("");
+  el.innerHTML = `
+    <div class="coverKick">组 会 分 享</div>
+    <h1 class="coverTitle">FSE 论文略读</h1>
+    <div class="coverSub">${N} 篇 · ${CATS.length} 大类 · 每篇约 30 秒</div>
+    <div class="cchips">${chips}</div>
+    <div class="hint">
+      <b>→</b> 下一篇&nbsp;&nbsp;<b>D</b> 详情&nbsp;&nbsp;<b>G</b> 目录&nbsp;&nbsp;<b>1-6</b> 跳类别&nbsp;&nbsp;<b>F</b> 全屏&nbsp;&nbsp;<b>T</b> 计时&nbsp;&nbsp;（点击左右半屏也可翻页）
+    </div>`;
+}
+
+function renderCat(el, ci){
+  const c = CATS[ci];
+  el.className = "slide cat";
+  el.style.setProperty("--cat", catColor(c));
+  const chips = PAPERS.filter(p => p.cat === ci).map(p =>
+    `<span class="pchip"><b>#${p.noPad}</b>${esc(trunc(p.titleZh, 22))}</span>`).join("");
+  el.innerHTML = `
+    <div class="wm">${esc(c.mnemonic)}</div>
+    <div class="catbody">
+      <div class="catmeta">${esc(c.mnemonic)} · 第 ${esc(c.range)} 篇 · 共 ${c.count} 篇</div>
+      <h1>${esc(c.name)}</h1>
+      <p class="survey">${esc(c.survey).replace(/#(\d{2,3})/g, '<b class="cite">#$1</b>')}</p>
+      <div class="plist">${chips}</div>
+    </div>`;
+}
+
+function renderPaper(el, pi){
+  const p = PAPERS[pi], c = CATS[p.cat];
+  el.className = "slide paper";
+  el.style.setProperty("--cat", catColor(c));
+  el.innerHTML = `
+    <div class="prow">
+      <span class="badge"><span class="mn">${esc(c.mnemonic)}</span>${esc(c.name)}</span>
+      <span class="pos">#${p.noPad} · 第 ${p.order} / ${N} 篇</span>
+    </div>
+    <h1 class="tzh">${esc(p.titleZh)}</h1>
+    <div class="ten">${esc(p.title)}</div>
+    <div class="summary">${esc(p.summary)}</div>
+    <div class="cols">
+      <section class="col c-problem"><header><span class="ic">❓</span>问题挑战</header><p>${esc(p.problem)}</p></section>
+      <section class="col c-method"><header><span class="ic">🛠️</span>核心方法</header><p>${esc(p.method)}</p></section>
+      <section class="col c-effect"><header><span class="ic">📈</span>主要效果</header><p>${esc(p.effect)}</p></section>
+    </div>
+    <div class="bottomRow">
+      <div class="team">👥 ${esc(p.team)}</div>
+      <button class="expand">▸ 展开详情：作者单位 · 中英摘要 · PDF 原文（按 D）</button>
+    </div>`;
+  el.querySelectorAll(".col p").forEach(pEl => {
+    const n = pEl.textContent.length;
+    if (n > 230) pEl.classList.add("xs");
+    else if (n > 170) pEl.classList.add("sm");
+    else if (n > 115) pEl.classList.add("md");
+  });
+  el.querySelector(".expand").addEventListener("click", () => openDrawer());
+  document.title = `#${p.noPad} ${p.titleZh} · FSE 论文略读`;
+}
+
+function renderEnd(el){
+  el.className = "slide end";
+  el.innerHTML = `
+    <div class="endTitle">✅ ${N} 篇全部讲完</div>
+    <div class="endSub">欢迎讨论 · 提问<br>按 <b>G</b> 可随时回看任意一篇</div>`;
+}
+
+/* ---------- 底栏进度 ---------- */
+function initFooter(){
+  $("pbar").innerHTML = CATS.map((c, i) =>
+    `<div class="seg" style="--sc:${catColor(c)}; flex:${c.count}" data-ci="${i}"><i></i></div>`).join("");
+}
+function donePapers(){
+  const s = slides[cur];
+  if (s.t === "paper") return PAPERS[s.pi].order;
+  if (s.t === "cat") return catStart(s.ci);
+  if (s.t === "end") return N;
+  return 0;
+}
+function updateFooter(){
+  const done = donePapers();
+  document.querySelectorAll("#pbar .seg").forEach(seg => {
+    const ci = +seg.dataset.ci;
+    const st = catStart(ci), cnt = CATS[ci].count;
+    seg.querySelector("i").style.width = Math.max(0, Math.min(cnt, done - st)) / cnt * 100 + "%";
+  });
+  $("fmeta").textContent = `第 ${Math.min(done, N)} / ${N} 篇`;
+}
+
+/* ---------- 详情抽屉 ---------- */
+let drawerPi = -1;
+function fillDrawer(pi){
+  const p = PAPERS[pi], c = CATS[p.cat];
+  drawerPi = pi;
+  const dw = $("drawer");
+  dw.style.setProperty("--cat", catColor(c));
+  $("dNo").textContent = "#" + p.noPad;
+  $("dTitle").textContent = p.titleZh;
+  $("dAuth").textContent = p.authors;
+  $("dAff").textContent = p.aff;
+  $("dKw").innerHTML = p.keywords.map(k => `<span>${esc(k)}</span>`).join("");
+  setAbsTab("zh");
+  const url = pdfUrl(p.pdf);
+  $("dOpen").href = url;
+  // PDF 查看器加载完成后会把焦点抢进 iframe，加载完成时再把焦点拉回来
+  const frame = $("dframe");
+  frame.onload = () => {
+    frame.onload = null;
+    if (drawerOpen) $("dClose").focus({ preventScroll: true });
+  };
+  frame.src = url;
+}
+function setAbsTab(t){
+  const p = PAPERS[drawerPi];
+  if (!p) return;
+  $("dAbs").textContent = t === "zh" ? p.absZh : p.abs;
+  $("tabZh").classList.toggle("on", t === "zh");
+  $("tabEn").classList.toggle("on", t !== "zh");
+  $("dAbs").scrollTop = 0;
+}
+function openDrawer(){
+  if (curPi < 0) return;
+  fillDrawer(curPi);
+  drawerOpen = true;
+  $("drawer").classList.add("open");
+  // 把焦点放到收起按钮上：防止 PDF iframe 抢走键盘焦点后，按键事件不再到达本页面
+  $("dClose").focus({ preventScroll: true });
+}
+function closeDrawer(){
+  drawerOpen = false;
+  $("drawer").classList.remove("open");
+  $("dframe").src = "about:blank";
+}
+function toggleDrawer(){ drawerOpen ? closeDrawer() : openDrawer(); }
+
+/* ---------- 目录总览 ---------- */
+function buildOv(){
+  $("ovBody").innerHTML = CATS.map((c, ci) => {
+    const cards = PAPERS.map((p, pi) => ({p, pi}))
+      .filter(x => x.p.cat === ci)
+      .map(x => `<div class="ovcard" style="--sc:${catColor(c)}" data-pi="${x.pi}">
+        <div class="n">#${x.p.noPad}</div>
+        <div class="t">${esc(x.p.titleZh)}</div>
+      </div>`).join("");
+    return `<div class="ovg">
+      <div class="ovgh" style="--sc:${catColor(c)}" data-goto="${catSlideIdx[ci]}">
+        <span class="mc">${esc(c.mnemonic)}</span>
+        <span class="nm">${esc(c.name)}</span>
+        <span class="rng">${c.count} 篇 · 第 ${esc(c.range)} 篇</span>
+      </div>
+      <div class="ovgrid">${cards}</div>
+    </div>`;
+  }).join("");
+}
+function openOv(){
+  document.querySelectorAll("#ov .ovcard").forEach(card =>
+    card.classList.toggle("cur", +card.dataset.pi === curPi));
+  $("ov").classList.add("open");
+  $("ov").scrollTop = 0;
+}
+function closeOv(){ $("ov").classList.remove("open"); }
+
+/* ---------- 导航 ---------- */
+function go(i){
+  i = Math.max(0, Math.min(slides.length - 1, i));
+  if (i === cur) return;
+  cur = i;
+  render();
+}
+
+/* ---------- 计时器 ---------- */
+function fmtT(s){ return String(Math.floor(s/60)).padStart(2,"0") + ":" + String(s%60).padStart(2,"0"); }
+function toggleTimer(){
+  if (tRun){ clearInterval(tInt); tRun = false; return; }
+  tRun = true;
+  $("tchip").hidden = false;
+  $("tchip").textContent = "⏱ " + fmtT(tSec);
+  tInt = setInterval(() => { tSec++; $("tchip").textContent = "⏱ " + fmtT(tSec); }, 1000);
+}
+function resetTimer(){ clearInterval(tInt); tRun = false; tSec = 0; $("tchip").hidden = true; }
+
+/* ---------- 事件 ---------- */
+document.addEventListener("keydown", e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if ($("ov").classList.contains("open")){
+    if (e.key === "Escape" || e.key === "g" || e.key === "G") closeOv();
+    e.preventDefault(); return;
+  }
+  switch (e.key){
+    case "ArrowRight": case " ": case "PageDown": case "n": case "N":
+      go(cur + 1); e.preventDefault(); break;
+    case "ArrowLeft": case "PageUp": case "p": case "P":
+      go(cur - 1); e.preventDefault(); break;
+    case "ArrowDown": case "d": case "D":
+      if (slides[cur].t === "paper") toggleDrawer();
+      e.preventDefault(); break;
+    case "ArrowUp":
+      if (drawerOpen) closeDrawer();
+      e.preventDefault(); break;
+    case "g": case "G": openOv(); break;
+    case "f": case "F":
+      document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+      break;
+    case "t": case "T": toggleTimer(); break;
+    case "r": case "R": resetTimer(); break;
+    case "Home": go(0); break;
+    case "End": go(slides.length - 1); break;
+    case "Escape": if (drawerOpen) closeDrawer(); break;
+    default:
+      if (/^[1-6]$/.test(e.key)) go(catSlideIdx[+e.key - 1]);
+  }
+});
+
+$("stage").addEventListener("click", e => {
+  if ($("ov").classList.contains("open")) return;
+  if (e.target.closest("button, a, .no-nav")) return;
+  if (drawerOpen){ closeDrawer(); return; } // 抽屉开着时，点抽屉外区域 = 收起
+  go(e.clientX > window.innerWidth * 0.5 ? cur + 1 : cur - 1);
+});
+
+$("stage").addEventListener("click", e => {
+  const b = e.target.closest("[data-goto]");
+  if (b) go(+b.dataset.goto);
+});
+
+$("btnPrev").addEventListener("click", () => go(cur - 1));
+$("btnNext").addEventListener("click", () => go(cur + 1));
+$("btnOv").addEventListener("click", openOv);
+$("ovClose").addEventListener("click", closeOv);
+$("dClose").addEventListener("click", closeDrawer);
+$("tabZh").addEventListener("click", () => setAbsTab("zh"));
+$("tabEn").addEventListener("click", () => setAbsTab("en"));
+$("btnFs").addEventListener("click", () =>
+  document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
+
+const themeBtn = $("btnTheme");
+function applyTheme(dark){
+  document.documentElement.dataset.theme = dark ? "dark" : "";
+  themeBtn.textContent = dark ? "☀️ 浅色" : "🌙 深色";
+  try { localStorage.setItem("fse-theme", dark ? "dark" : "light"); } catch(_){}
+}
+themeBtn.addEventListener("click", () =>
+  applyTheme(document.documentElement.dataset.theme !== "dark"));
+try { applyTheme(localStorage.getItem("fse-theme") === "dark"); } catch(_){}
+
+$("ovBody").addEventListener("click", e => {
+  const card = e.target.closest(".ovcard");
+  if (card){ closeOv(); go(paperSlideIdx[+card.dataset.pi]); return; }
+  const gh = e.target.closest(".ovgh");
+  if (gh){ closeOv(); go(+gh.dataset.goto); }
+});
+
+/* ---------- 启动 ---------- */
+(async function(){
+  if (!await load()) return;
+  buildSlides();
+  initFooter();
+  buildOv();
+  document.body.classList.remove("booting");
+  render();
+})();
+})();
+</script>
+</body>
+</html>
